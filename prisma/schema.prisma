@@ -1,0 +1,106 @@
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model User {
+  id           String    @id @default(cuid())
+  email        String    @unique
+  name         String?
+  passwordHash String
+  role         String    @default("admin")
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+  projects     Project[]
+}
+
+model Project {
+  id               String             @id @default(cuid())
+  name             String
+  slug             String             @unique
+  description      String?
+  status           String             @default("draft") // "draft" | "published" | "archived"
+  templateId       String?
+  template         Template?          @relation(fields: [templateId], references: [id])
+  draftVersion     Int                @default(1)
+  publishedVersion Int                @default(0)
+  publicSlug       String             @unique
+  customDomain     String?            @unique
+  globalStyles     String             @default("{}") // JSON for fonts, colors, etc.
+  seoSettings      String             @default("{}") // JSON for favicon, meta, social
+  userId           String?
+  user             User?              @relation(fields: [userId], references: [id], onDelete: SetNull)
+  pages            Page[]
+  assets           Asset[]
+  publishedHistory PublishedVersion[]
+  createdAt        DateTime           @default(now())
+  updatedAt        DateTime           @updatedAt
+  publishedAt      DateTime?
+
+  @@index([userId])
+  @@index([status])
+  @@index([publicSlug])
+}
+
+model Page {
+  id             String   @id @default(cuid())
+  projectId      String
+  project        Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  name           String
+  slug           String // e.g. "home", "about", "services", "contact"
+  contentJson    String // The tree JSON
+  isHomePage     Boolean  @default(false)
+  seoTitle       String?
+  seoDescription String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@unique([projectId, slug])
+  @@index([projectId])
+}
+
+model Template {
+  id          String    @id @default(cuid())
+  name        String
+  slug        String    @unique
+  description String?
+  category    String    @default("General")
+  thumbnail   String?
+  contentJson String // Multi-page JSON template or default single-page JSON
+  isDefault   Boolean   @default(false)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  projects    Project[]
+}
+
+model Asset {
+  id           String   @id @default(cuid())
+  projectId    String?
+  project      Project? @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  filename     String
+  originalName String
+  url          String
+  mimeType     String
+  size         Int
+  createdAt    DateTime @default(now())
+
+  @@index([projectId])
+}
+
+model PublishedVersion {
+  id           String   @id @default(cuid())
+  projectId    String
+  project      Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  version      Int
+  contentJson  String // Snapshot of all pages + global styles + seo
+  snapshotNote String?
+  publishedBy  String?
+  createdAt    DateTime @default(now())
+
+  @@unique([projectId, version])
+  @@index([projectId])
+}
